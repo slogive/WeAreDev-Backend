@@ -16,7 +16,7 @@ export const users = sequelize.define('users', {
   document: { type: DataTypes.STRING },
   documentType: { type: DataTypes.STRING },
   password: { type: DataTypes.STRING },
-  email: { type: DataTypes.STRING },
+  email: { type: DataTypes.STRING, unique: true },
 });
 
 user_status.belongsTo(users, { targetKey: 'id' });

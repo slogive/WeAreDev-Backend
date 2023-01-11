@@ -7,20 +7,25 @@ export const postUser = async (req: Request, res: Response) => {
   try {
     const { name, surname, score, status, document, documentType, password, rePassword, email } = req.body;
 
+    if (password !== rePassword)
+      return res.status(Boom.badRequest().output.payload.statusCode).json(Boom.badRequest('Password not match').output.payload);
+
     const postUser: any = await users.create({
       name,
       surname,
-      score,
-      status,
+      score: Math.floor(Math.random() * (900 - 0 + 1) + 0),
+      status: 1,
       document,
-      documentType,
-      password,
+      documentType: 1,
+      password: await bcrypt.hash(password, 10),
       email,
     });
 
-    res.json(postUser);
+    res.status(200).json({ statusCode: 200, message: 'User created', body: { postUser } });
   } catch (err) {
-    return res.json(Boom.internal().output.payload);
+    console.error(err);
+
+    return res.status(Boom.internal().output.payload.statusCode).json(Boom.internal().output.payload);
   }
 };
 
@@ -54,21 +59,53 @@ export const deleteUser = async (req: Request, res: Response) => {
 
 export const putUser = async (req: Request, res: Response) => {
   try {
-    const putUser: any = await users.findByPk(req.body.id);
-    putUser.name = req.body.name;
-    putUser.surname = req.body.surname;
-    putUser.score = req.body.score;
-    putUser.status = req.body.status;
-    putUser.document = req.body.document;
-    putUser.documentType = req.body.documentType;
-    putUser.password = req.body.password;
-    putUser.rePassword = req.body.rePassword;
-    putUser.email = req.body.email;
+    if (req.body.password !== req.body.rePassword)
+      return res.status(Boom.badRequest().output.payload.statusCode).json(Boom.badRequest('Password not match').output.payload);
 
-    await putUser?.save();
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
+
+    const putUser: any = await users.findByPk(req.body.id);
+
+    await users.update(
+      {
+        name: req.body.name,
+        surname: req.body.surname,
+        score: await putUser.score,
+        status: await putUser.status,
+        document: req.body.document,
+        documentType: req.body.documentType,
+        password: hashedPassword,
+        email: req.body.email,
+      },
+      {
+        where: {
+          id: putUser.id,
+        },
+      }
+    );
 
     res.json({ statusCode: 204, message: 'User updated', body: putUser });
   } catch (err) {
+    return res.status(Boom.internal().output.payload.statusCode).json(Boom.internal().output.payload);
+  }
+};
+
+export const loginUser = async (req: Request, res: Response) => {
+  try {
+    const user: any = await users.findOne({ where: { email: req.body.email } });
+
+    const password = req.body.password;
+
+    bcrypt.compare(password, user.password, async (err, result) => {
+      if (result) {
+        res.status(200).json({ statusCode: 200, body: { ...user.dataValues, token: '' } });
+      } else {
+        res.status(400).json({ statusCode: 400, message: 'User password not valid' });
+      }
+    });
+  } catch (err) {
+    console.error(err);
+
     return res.status(Boom.internal().output.payload.statusCode).json(Boom.internal().output.payload);
   }
 };
@@ -86,8 +123,6 @@ export const testUser = async (req: Request, res: Response) => {
         res.json({ password: 'fail' });
       }
     });
-
-    // res.json({ hash });
   } catch (err) {
     return res.status(Boom.internal().output.payload.statusCode).json(Boom.internal().output.payload);
   }
